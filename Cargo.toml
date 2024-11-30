@@ -1,0 +1,18 @@
+[package]
+name = "sms-redis-webhook"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+actix = "0.13.5"
+actix-web = { version = "4.9.0" }
+serde = { version = "1.0.215", features = ["derive"] }
+redis = { version = "0.27.5", default-features = false, features = [
+    "tokio-comp",
+    "aio",
+    "connection-manager",
+] }
+dotenvy = "0.15.7"
+orion = "0.17.7"

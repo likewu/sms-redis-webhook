@@ -1,0 +1,10 @@
+version: "3.4"
+services:
+  redis:
+    build:
+      context: .
+      dockerfile: Dockerfile-redis-dev
+    ports:
+      - 6379:6379
+    volumes:
+      - ./data:/data

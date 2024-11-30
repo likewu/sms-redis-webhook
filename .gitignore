@@ -1,0 +1,30 @@
+/target
+
+db-data
+db-data/*
+data
+data/*
+
+# Ignore all logfiles and tempfiles.
+log/*.log
+tmp/*
+tmp/
+.idea
+
+*.xls
+*.csv
+.bundle*
+*.byebug_history
+coverage
+
+# misc
+.DS_Store
+.vscode
+
+.env
+.env.production
+
+/node_modules
+client/node_modules
+dist
+dist/*
