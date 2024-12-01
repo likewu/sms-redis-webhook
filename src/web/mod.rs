@@ -10,8 +10,8 @@ use anyhow::{anyhow, bail, Context, Result};
 use config::ConfigError;
 use rustls::{Certificate, PrivateKey, ServerConfig};
 use rustls_pemfile::{pkcs8_private_keys, rsa_private_keys};
-use serde::{Deserialize, Serialize};
-use redis::aio::ConnectionManager;
+use serde::{Deserialize};
+use redis::Connection;
 
 mod authentication;
 mod helper;
@@ -20,12 +20,6 @@ mod routes;
 use crate::scheduler::Scheduler;
 use crate::settings::Settings;
 use routes::*;
-
-#[derive(Clone, Debug, Deserialize, Serialize)]
-pub struct QueryInfo {
-    pub token: Option<String>,
-    pub key: Option<String>,
-}
 
 /// State of the actix-web application
 pub struct AppState {
@@ -42,7 +36,7 @@ pub struct Payload {
 /// Initialize the web server
 /// Move the address of the queue actor inside the AppState for further dispatch
 /// of tasks to the actor
-pub fn init_web_server(scheduler: Addr<Scheduler>, settings: Settings, redis: ConnectionManager) -> Result<()> {
+pub fn init_web_server(scheduler: Addr<Scheduler>, settings: Settings, redis: Connection) -> Result<()> {
     let server = HttpServer::new(move || {
         App::new()
             .app_data(AppState {
@@ -72,7 +66,7 @@ pub fn init_web_server(scheduler: Addr<Scheduler>, settings: Settings, redis: Co
                 .with_single_cert(certs, key)
                 .map_err(|err| anyhow!("Failed to build TLS Acceptor: {}", err))?;
 
-            server.bind_rustls(address, config)?.run();
+            server.bind_rustls_021(address, config)?.run();
         }
         (None, None) => {
             server.bind(address)?.run();
@@ -92,7 +86,7 @@ pub fn init_web_server(scheduler: Addr<Scheduler>, settings: Settings, redis: Co
 fn load_certs(path: &Path) -> Result<Vec<Certificate>> {
     let file = File::open(path).context(format!("Cannot open cert {:?}", path))?;
     let certs: Vec<Certificate> = rustls_pemfile::certs(&mut BufReader::new(file))
-        .context("Failed to parse daemon certificate.")?
+        .expect("Failed to parse daemon certificate.")
         .into_iter()
         .map(Certificate)
         .collect();
@@ -102,12 +96,12 @@ fn load_certs(path: &Path) -> Result<Vec<Certificate>> {
 
 /// Load the passed keys file.
 /// Only the first key will be used. It should match the certificate.
-fn load_key(path: &Path) -> Result<PrivateKey> {
+fn load_key(path: &Path) -> Result<PrivateKeyDer> {
     let file = File::open(path).context(format!("Cannot open key {:?}", path))?;
 
     // Try to read pkcs8 format first
     let keys =
-        pkcs8_private_keys(&mut BufReader::new(&file)).context("Failed to parse pkcs8 format.");
+        pkcs8_private_keys(&mut BufReader::new(&file));
 
     if let Ok(keys) = keys {
         if let Some(key) = keys.into_iter().next() {
@@ -117,10 +111,12 @@ fn load_key(path: &Path) -> Result<PrivateKey> {
 
     // Try the normal rsa format afterwards.
     let keys =
-        rsa_private_keys(&mut BufReader::new(file)).context("Failed to parse daemon key.")?;
+        rsa_private_keys(&mut BufReader::new(file));
 
-    if let Some(key) = keys.into_iter().next() {
-        return Ok(PrivateKey(key));
+    if let Ok(keys) = keys {
+        if let Some(key) = keys.into_iter().next() {
+            return Ok(PrivateKey(key));
+        }
     }
 
     bail!("Couldn't extract private key from keyfile {:?}", path)

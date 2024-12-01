@@ -23,7 +23,7 @@ fn main() -> Result<()> {
 
     let redis_url = env::var("REDIS_PRIVATE_URL").expect("Missing Redis URL");
     let client = redis::Client::open(redis_url).unwrap();
-    let backend = ConnectionManager::new(client).unwrap();
+    let backend = client.get_connection()?;
 
     // Create actix actors and path the reference of the task_executor to the scheduler
     // The scheduler will send it's own address in the StartTask payload for bidirectional communication

@@ -9,7 +9,7 @@ use std::time::{SystemTime, UNIX_EPOCH};
 use crate::messages::GetQueue;
 use crate::web::authentication::verify_authentication_header;
 use crate::web::helper::*;
-use crate::web::{QueryInfo, AppState, Payload};
+use crate::web::{AppState, Payload};
 
 /// Index route for getting current state of the server
 pub async fn index(data: web::Data<AppState>, request: HttpRequest) -> HttpResponse {
@@ -36,17 +36,17 @@ pub async fn webhook(
     path_info: web::Path<String>,
     request: HttpRequest,
     body: web::Bytes,
-    //query: web::Query<QueryInfo>,
 ) -> HttpResponse {
     let body: Vec<u8> = body.to_vec();
 
+    let query = Query::<HashMap<String, String>>::from_query(request.query_string()).unwrap();
     let mut validated = false;
     let token = data.settings.secret.clone().expect("No token found");
-    if let Some(token_from_query) = query.token.clone() {
+    if let Some(token_from_query) = query.get("token") {
         validated = secure_cmp(token_from_query.clone().as_bytes(), token.as_bytes()).is_ok();
     }
 
-    if let Some(key_from_query) = query.key.clone() {
+    if let Some(key_from_query) = query.get("key") {
         validated = validated && true;
     } else {
         validated = false;
