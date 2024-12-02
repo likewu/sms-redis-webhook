@@ -73,7 +73,7 @@ pub async fn webhook(
             return HttpResponse::Ok().finish();
         }
         false => {
-            return HttpResponse::Unauthorized().finish();
+            //return HttpResponse::Unauthorized().finish();
         }
     }
 
