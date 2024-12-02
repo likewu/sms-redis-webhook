@@ -5,6 +5,8 @@ use log::{debug, info};
 
 use orion::util::secure_cmp;
 use std::time::{SystemTime, UNIX_EPOCH};
+use std::collections::HashMap;
+use redis::AsyncCommands;
 
 use crate::messages::GetQueue;
 use crate::web::authentication::verify_authentication_header;
@@ -39,7 +41,7 @@ pub async fn webhook(
 ) -> HttpResponse {
     let body: Vec<u8> = body.to_vec();
 
-    let query = Query::<HashMap<String, String>>::from_query(request.query_string()).unwrap();
+    let query = web::Query::<HashMap<String, String>>::from_query(request.query_string()).unwrap();
     let mut validated = false;
     let token = data.settings.secret.clone().expect("No token found");
     if let Some(token_from_query) = query.get("token") {
@@ -56,14 +58,14 @@ pub async fn webhook(
         true => {
             let sys_time = SystemTime::now().duration_since(UNIX_EPOCH).unwrap();
             let sys_time = format!("{}", sys_time.as_secs());
-            let mut s = String::from(key_from_query);
+            let mut s = String::from(query.get("key").unwrap());
             s.push_str("-");
             s.push_str(&sys_time);
-            let mut redis = config.redis.clone();
+            let mut redis = data.redis.clone();
             let _: () = redis
                 .set(
                     s,
-                    &req_body,
+                    &body,
                 )
                 .await
                 .expect("Failed to write to Redis");
@@ -71,7 +73,7 @@ pub async fn webhook(
             return HttpResponse::Ok().finish();
         }
         false => {
-            return Ok(HttpResponse::Unauthorized().finish());
+            return HttpResponse::Unauthorized().finish();
         }
     }
 

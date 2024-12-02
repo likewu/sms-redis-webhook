@@ -11,7 +11,7 @@ use config::ConfigError;
 use rustls::{Certificate, PrivateKey, ServerConfig};
 use rustls_pemfile::{pkcs8_private_keys, rsa_private_keys};
 use serde::{Deserialize};
-use redis::Connection;
+use redis::aio::ConnectionManager;
 
 mod authentication;
 mod helper;
@@ -22,6 +22,7 @@ use crate::settings::Settings;
 use routes::*;
 
 /// State of the actix-web application
+#[derive(Clone)]
 pub struct AppState {
     scheduler: Addr<Scheduler>,
     settings: Settings,
@@ -36,14 +37,15 @@ pub struct Payload {
 /// Initialize the web server
 /// Move the address of the queue actor inside the AppState for further dispatch
 /// of tasks to the actor
-pub fn init_web_server(scheduler: Addr<Scheduler>, settings: Settings, redis: Connection) -> Result<()> {
+pub async fn init_web_server(scheduler: Addr<Scheduler>, settings: Settings, redis: ConnectionManager) -> Result<(), anyhow::Error> {
+    let data = web::Data::new(AppState {
+        scheduler: scheduler.clone(),
+        settings: settings.clone(),
+        redis,
+    });
     let server = HttpServer::new(move || {
         App::new()
-            .app_data(AppState {
-                scheduler: scheduler.clone(),
-                settings: settings.clone(),
-                redis,
-            })
+            .app_data(data.clone())
             .service(web::resource("/{webhook_name}").to(webhook))
             .service(web::resource("/healthcheck").route(web::get().to(healthcheck)))
             .service(web::resource("/").to(index))
@@ -66,10 +68,14 @@ pub fn init_web_server(scheduler: Addr<Scheduler>, settings: Settings, redis: Co
                 .with_single_cert(certs, key)
                 .map_err(|err| anyhow!("Failed to build TLS Acceptor: {}", err))?;
 
-            server.bind_rustls_021(address, config)?.run();
+            let server = server.bind_rustls_021(address, config)?.run();
+            println!("Server running at http://{}:{}/", settings.domain, settings.port);
+            let _ = server.await;
         }
         (None, None) => {
-            server.bind(address)?.run();
+            let server = server.bind(address)?.run();
+            println!("Server running at http://{}:{}/", settings.domain, settings.port);
+            let _ = server.await;
         }
         (Some(_), None) => {
             Err(ConfigError::NotFound("ssl_cert_chain".to_string()))?;
@@ -96,7 +102,7 @@ fn load_certs(path: &Path) -> Result<Vec<Certificate>> {
 
 /// Load the passed keys file.
 /// Only the first key will be used. It should match the certificate.
-fn load_key(path: &Path) -> Result<PrivateKeyDer> {
+fn load_key(path: &Path) -> Result<PrivateKey> {
     let file = File::open(path).context(format!("Cannot open key {:?}", path))?;
 
     // Try to read pkcs8 format first

@@ -104,7 +104,7 @@ fn verify_signature_header(
     let secret_bytes = secret.into_bytes();
     let expected_signature = generate_signature_sha1(&secret_bytes, body);
 
-    match expected_signature.clone().verify(&signature_bytes) {
+    match expected_signature.clone().verify(&generic_array::GenericArray::from_exact_iter(signature_bytes.into_iter()).unwrap()) {
         Ok(()) => Ok(()),
         Err(_) => {
             warn!(

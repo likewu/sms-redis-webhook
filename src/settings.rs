@@ -77,7 +77,7 @@ impl Settings {
         settings.set_default("basic_auth_and_secret", false)?;
 
         settings = parse_config(settings)?;
-        let settings: Settings = settings.try_into()?;
+        let mut settings: Settings = settings.try_deserialize()?;
 
         let secret_token = env::var("PRIVATE_EXCHANGE_TOKEN").expect("Missing port number");
         settings.secret = Some(secret_token);
@@ -156,7 +156,7 @@ fn parse_config(mut settings: Config) -> Result<Config> {
 #[cfg(target_os = "linux")]
 fn get_config_paths() -> Result<Vec<PathBuf>> {
     let mut paths = Vec::new();
-    let home_dir = dirs::home_dir().ok_or(anyhow!("Couldn't resolve home dir"))?;
+    let _home_dir = dirs::home_dir().ok_or(anyhow!("Couldn't resolve home dir"))?;
     paths.push(Path::new("/etc/webhook.yml").to_path_buf());
     paths.push(home_dir.join(".config/webhook.yml"));
     paths.push(Path::new("./webhook.yml").to_path_buf());
